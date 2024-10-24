@@ -1,0 +1,72 @@
+import requests
+from bs4 import BeautifulSoup
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
+
+# Spotify credentials
+SPOTIFY_ID = "6a0dcaa5ac7b4339952235e10e0736c4"
+SPOTIFY_SECRET = "62d4b3cd1b6242eb8ad2543ba37f7c40"
+REDIRECT = "http://example.com"
+
+# Spotify authentication
+sp = spotipy.Spotify(
+    auth_manager=SpotifyOAuth(
+        scope="playlist-modify-private",
+        redirect_uri=REDIRECT,
+        client_id=SPOTIFY_ID,
+        client_secret=SPOTIFY_SECRET,
+        show_dialog=True,
+        cache_path="token.txt",
+        username="chintan",
+    )
+)
+user_id = sp.current_user()["id"]
+
+# Get the date input
+date = input("Which year do you want to travel to? Enter date in format YYYY-MM-DD: ")
+
+# Billboard Hot 100 URL for the given date
+URL = f"https://www.billboard.com/charts/hot-100/{date}"
+
+# Make the request to Billboard
+response = requests.get(URL)
+songs = response.text
+
+# Parse the HTML
+soup = BeautifulSoup(songs, "html.parser")
+
+# Check the page title to confirm the correct page is loaded
+print(soup.title)
+
+# Debug: Check if song titles are being selected correctly
+song_list = []
+songs_title = soup.select("ul li h3")  # Adjust the selector if necessary
+
+# Debug: Print the number of songs found
+print(f"Number of songs found: {len(songs_title)}")
+
+# Append song titles to the list
+for song_title in songs_title:
+    song_list.append(song_title.getText().strip())
+
+# Debug: Print the song list to ensure songs are being captured
+print(song_list)
+
+# Searching for song URIs on Spotify
+song_uri = []
+year = date.split("-")[0]
+
+for song in song_list:
+    result = sp.search(q=f"track:{song} year:{year}", type="track")
+    try:
+        uri = result["tracks"]["items"][0]["uri"]
+        song_uri.append(uri)
+    except IndexError:
+        print(f"{song} does not exist on Spotify.")
+
+# Create a Spotify playlist
+playlist = sp.user_playlist_create(user=user_id, name=f"{date} Billboard 100", public=False)
+print(playlist)
+
+# Add songs to the playlist
+sp.playlist_add_items(playlist_id=playlist["id"], items=song_uri)
